@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Extracción de Enlaces</title>
+    <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px;
+            border: 1px solid #ddd;
+            text-align: left;
+        }
+        th {
+            background-color: #f4f4f4;
+        }
+    </style>
+</head>
+<body>
+    <h1>Ingresa una URL para extraer enlaces</h1>
+    <form method="POST">
+        <label for="url">URL:</label>
+        <input type="text" id="url" name="url" required>
+        <button type="submit">Procesar</button>
+    </form>
+
+    {% if data %}
+        <h2>Resultados</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>URL</th>
+                    <th>Título</th>
+                    <th>Etiqueta H1</th>
+                    <th>Meta Descripción</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for row in data %}
+                    <tr>
+                        <td><a href="{{ row['URL'] }}" target="_blank">{{ row['URL'] }}</a></td>
+                        <td>{{ row['Título'] }}</td>
+                        <td>{{ row['Etiqueta H1'] }}</td>
+                        <td>{{ row['Meta Descripción'] }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        <br>
+
+        {% if download_link %}
+            <a href="{{ url_for('download', filename=download_link) }}" download>Descargar resultados en Excel</a>
+        {% endif %}
+    {% endif %}
+</body>
+</html>
