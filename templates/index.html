@@ -3,32 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Extracción de Enlaces</title>
+    <title>Analizador SEO - Extracción de Enlaces</title>
     <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        form {
+            margin-bottom: 20px;
+        }
+        label {
+            font-weight: bold;
+        }
+        input[type="text"] {
+            width: 300px;
+            padding: 8px;
+            margin-right: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
         table {
             width: 100%;
             border-collapse: collapse;
+            margin-top: 20px;
         }
         th, td {
-            padding: 8px;
+            padding: 10px;
             border: 1px solid #ddd;
             text-align: left;
         }
         th {
             background-color: #f4f4f4;
         }
+        a {
+            color: #007BFF;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
-    <h1>Ingresa una URL para extraer enlaces</h1>
+    <h1>Analizador SEO - Extracción de Enlaces</h1>
+    <p>Ingresa la URL de un sitio web para analizar sus enlaces, títulos, etiquetas H1 y meta descripciones.</p>
     <form method="POST">
         <label for="url">URL:</label>
-        <input type="text" id="url" name="url" required>
+        <input type="text" id="url" name="url" placeholder="https://ejemplo.com" required>
         <button type="submit">Procesar</button>
     </form>
 
     {% if data %}
-        <h2>Resultados</h2>
+        <h2>Resultados del análisis</h2>
         <table>
             <thead>
                 <tr>
@@ -36,6 +77,7 @@
                     <th>Título</th>
                     <th>Etiqueta H1</th>
                     <th>Meta Descripción</th>
+                    <th>Código de Respuesta</th>
                 </tr>
             </thead>
             <tbody>
@@ -45,15 +87,17 @@
                         <td>{{ row['Título'] }}</td>
                         <td>{{ row['Etiqueta H1'] }}</td>
                         <td>{{ row['Meta Descripción'] }}</td>
+                        <td>{{ row['Código de Respuesta'] }}</td>
                     </tr>
                 {% endfor %}
             </tbody>
+            
         </table>
 
         <br>
 
         {% if download_link %}
-            <a href="{{ url_for('download', filename=download_link) }}" download>Descargar resultados en Excel</a>
+            <a href="{{ url_for('download', filename=download_link) }}" class="btn btn-primary">Descargar resultados en Excel</a>
         {% endif %}
     {% endif %}
 </body>

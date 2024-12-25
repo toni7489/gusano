@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, send_file
+from flask import Flask, render_template, request, send_file, url_for
 import requests
 from lxml import html
 from urllib.parse import urljoin
@@ -8,7 +8,7 @@ import os
 
 app = Flask(__name__)
 
-# Función para obtener enlaces, título, H1 y meta descripción
+# Función para obtener enlaces, título, H1, meta descripción y código de respuesta
 def extract_info_from_url(url):
     # Obtener el contenido de la página principal
     response = requests.get(url)
@@ -52,22 +52,23 @@ def extract_info_from_url(url):
         except requests.RequestException:
             return 'Error al obtener H1'
 
-    def get_meta_description(page_url, retries=3, delay=5):
-        attempt = 0
-        while attempt < retries:
-            try:
-                response = requests.get(page_url, timeout=10)
-                if 'text/html' in response.headers.get('Content-Type', ''):
-                    page_tree = html.fromstring(response.content)
-                    meta_description = page_tree.xpath('//meta[@name="description"]/@content')
-                    if meta_description:
-                        return meta_description[0].strip()
-                    return 'Sin meta descripción'
-                return 'No es una página HTML'
-            except requests.RequestException:
-                attempt += 1
-                time.sleep(delay)
-        return 'Error al obtener meta descripción'
+    def get_meta_description(page_url):
+        try:
+            response = requests.get(page_url, timeout=10)
+            if 'text/html' in response.headers.get('Content-Type', ''):
+                page_tree = html.fromstring(response.content)
+                meta_description = page_tree.xpath('//meta[@name="description"]/@content')
+                return meta_description[0].strip() if meta_description else 'Sin meta descripción'
+            return 'No es una página HTML'
+        except requests.RequestException:
+            return 'Error al obtener meta descripción'
+
+    def get_status_code(page_url):
+        try:
+            response = requests.get(page_url, timeout=10)
+            return response.status_code
+        except requests.RequestException:
+            return 'Error'
 
     # Extraer los datos de los enlaces
     data = []
@@ -77,13 +78,15 @@ def extract_info_from_url(url):
         title = get_title(link)
         h1 = get_h1(link)
         meta_description = get_meta_description(link)
+        status_code = get_status_code(link)
         
         # Agregar los datos al listado
         data.append({
             'URL': link,
             'Título': title,
             'Etiqueta H1': h1,
-            'Meta Descripción': meta_description
+            'Meta Descripción': meta_description,
+            'Código de Respuesta': status_code
         })
 
     return data
