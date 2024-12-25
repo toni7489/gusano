@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Analizador SEO - Extracción de Enlaces</title>
+    <title>Analizador SEO - Enlaces Recursivos</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -19,7 +19,7 @@
         label {
             font-weight: bold;
         }
-        input[type="text"] {
+        input[type="text"], input[type="number"] {
             width: 300px;
             padding: 8px;
             margin-right: 10px;
@@ -60,38 +60,44 @@
     </style>
 </head>
 <body>
-    <h1>Analizador SEO - Extracción de Enlaces</h1>
-    <p>Ingresa la URL de un sitio web para analizar sus enlaces, títulos, etiquetas H1 y meta descripciones.</p>
+    <h1>Analizador SEO - Enlaces Recursivos</h1>
+    <p>Ingresa la URL de un sitio web y la profundidad para analizar enlaces recursivamente.</p>
     <form method="POST">
         <label for="url">URL:</label>
         <input type="text" id="url" name="url" placeholder="https://ejemplo.com" required>
+        <label for="depth">Profundidad:</label>
+        <input type="number" id="depth" name="depth" value="1" min="1" required>
         <button type="submit">Procesar</button>
     </form>
 
     {% if data %}
         <h2>Resultados del análisis</h2>
+        <p>Total de enlaces analizados: {{ total_links }}</p>
         <table>
             <thead>
                 <tr>
+                    <th>#</th>
                     <th>URL</th>
+                    <th>Código de Respuesta</th>
                     <th>Título</th>
                     <th>Etiqueta H1</th>
                     <th>Meta Descripción</th>
-                    <th>Código de Respuesta</th>
+                    <th>Profundidad</th>
                 </tr>
             </thead>
             <tbody>
                 {% for row in data %}
                     <tr>
+                        <td>{{ loop.index }}</td>
                         <td><a href="{{ row['URL'] }}" target="_blank">{{ row['URL'] }}</a></td>
+                        <td>{{ row['Código de Respuesta'] }}</td>
                         <td>{{ row['Título'] }}</td>
                         <td>{{ row['Etiqueta H1'] }}</td>
                         <td>{{ row['Meta Descripción'] }}</td>
-                        <td>{{ row['Código de Respuesta'] }}</td>
+                        <td>{{ row['Profundidad'] }}</td>
                     </tr>
                 {% endfor %}
             </tbody>
-            
         </table>
 
         <br>
