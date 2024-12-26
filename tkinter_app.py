@@ -5,9 +5,10 @@ from lxml import html
 from urllib.parse import urljoin
 import threading
 import pandas as pd
+import mimetypes
 
 # Funciones para obtener los enlaces, título, H1, meta descripción, código de estado y tipo
-def extract_info_from_url(url, callback):
+def extract_info_from_url(url, callback, processed_urls):
     response = requests.get(url)
     tree = html.fromstring(response.content)
 
@@ -24,14 +25,25 @@ def extract_info_from_url(url, callback):
         return link and link.startswith(('http', 'https', 'www'))
 
     def get_file_type(page_url):
+        # Intentar identificar el tipo de archivo usando la extensión del archivo en la URL
+        file_type, _ = mimetypes.guess_type(page_url)
+        if file_type:
+            if 'image' in file_type:
+                return 'Imagen'
+            elif 'html' in file_type:
+                return 'HTML'
+            elif 'css' in file_type:
+                return 'CSS'
+            elif 'javascript' in file_type or 'js' in file_type:
+                return 'JavaScript'
+        # Si no se puede determinar a partir de la extensión, hacer una verificación con HEAD
         try:
             response = requests.head(page_url, timeout=10)
             content_type = response.headers.get('Content-Type', '')
-            
-            if 'html' in content_type:
-                return 'HTML'
-            elif 'image' in content_type:
+            if 'image' in content_type:
                 return 'Imagen'
+            elif 'html' in content_type:
+                return 'HTML'
             elif 'css' in content_type:
                 return 'CSS'
             elif 'javascript' in content_type or 'js' in content_type:
@@ -39,6 +51,13 @@ def extract_info_from_url(url, callback):
             return 'Desconocido'
         except requests.RequestException:
             return 'Error'
+
+    def get_status_code(page_url):
+        try:
+            response = requests.get(page_url, timeout=10)
+            return response.status_code
+        except requests.RequestException as e:
+            return f'Error: {e}'
 
     def get_title(page_url):
         try:
@@ -73,30 +92,32 @@ def extract_info_from_url(url, callback):
         except requests.RequestException:
             return 'Error al obtener meta descripción'
 
-    def get_status_code(page_url):
-        try:
-            response = requests.get(page_url, timeout=10)
-            return response.status_code
-        except requests.RequestException:
-            return 'Error'
-
+    # Recorrer los enlaces únicos obtenidos de la página
     for link in unique_links:
         if not is_valid_url(link):  # Saltar enlaces no válidos
             continue
+        if link in processed_urls:  # Verificar si la URL ya fue procesada
+            continue
+
+        # Marcar la URL como procesada
+        processed_urls.add(link)
+
+        # Obtener información del enlace
+        status_code = get_status_code(link)  # Capturar el código de respuesta
         title = get_title(link)
         h1 = get_h1(link)
         meta_description = get_meta_description(link)
-        status_code = get_status_code(link)
-        file_type = get_file_type(link)  # Obtener el tipo de archivo
+        file_type = get_file_type(link)
 
         result = {
+            'Código de Respuesta': status_code,  # Ahora está primero
             'URL': link,
-            'Tipo': file_type,  # Ahora está primero
+            'Tipo': file_type,  # Ahora está segundo
             'Título': title,
             'Etiqueta H1': h1,
             'Meta Descripción': meta_description,
-            'Código de Respuesta': status_code,
         }
+
         # Llamar al callback para insertar el resultado en el Treeview
         callback(result)
 
@@ -111,12 +132,14 @@ def analyze_url():
 
     result_tree.delete(*result_tree.get_children())  # Limpiar resultados previos
     collected_data.clear()  # Limpiar datos previos
+    processed_urls.clear()  # Limpiar URLs procesadas previamente
     result_tree.insert("", "end", text="Iniciando análisis...")
 
     # Crear hilo para no bloquear la interfaz
     def run_analysis():
         try:
-            extract_info_from_url(url, update_treeview)
+            processed_urls.add(url)  # Agregar la URL inicial como procesada
+            extract_info_from_url(url, update_treeview, processed_urls)
             status_label.config(text=f"Análisis completado.")
         except Exception as e:
             messagebox.showerror("Error", f"Hubo un problema al procesar la URL: {e}")
@@ -130,7 +153,7 @@ def update_treeview(result):
         return
 
     # Inserta el resultado en el Treeview de manera progresiva
-    item_id = result_tree.insert("", "end", values=(result['URL'], result['Tipo'], result['Título'], result['Etiqueta H1'], result['Meta Descripción'], result['Código de Respuesta']))
+    item_id = result_tree.insert("", "end", values=(result['Código de Respuesta'], result['URL'], result['Tipo'], result['Título'], result['Etiqueta H1'], result['Meta Descripción']))
 
     # Alternar colores de fondo de las filas (filas de gris claro y gris oscuro alternadas)
     row_index = len(result_tree.get_children()) - 1  # Índice de la fila
@@ -143,19 +166,6 @@ def update_treeview(result):
     # Actualizar el contador de enlaces
     collected_data.append(result)
     link_count_label.config(text=f"Enlaces encontrados: {len(result_tree.get_children())}")
-
-# Función para filtrar los resultados
-def filter_results():
-    filter_text = filter_entry.get().lower()
-    
-    # Eliminar los resultados actuales
-    result_tree.delete(*result_tree.get_children())
-
-    # Insertar los resultados que coincidan con el filtro
-    for data in collected_data:
-        # Buscar en todas las columnas
-        if any(filter_text in str(data[col]).lower() for col in data):
-            result_tree.insert("", "end", values=(data['URL'], data['Tipo'], data['Título'], data['Etiqueta H1'], data['Meta Descripción'], data['Código de Respuesta']))
 
 # Función para exportar resultados a Excel
 def export_to_excel():
@@ -180,6 +190,7 @@ def export_to_excel():
 
 # Variables globales
 collected_data = []
+processed_urls = set()  # Conjunto para almacenar las URLs procesadas
 
 # Crear la interfaz gráfica
 root = tk.Tk()
@@ -216,35 +227,18 @@ status_label.pack(pady=5)
 link_count_label = tk.Label(root, text="Enlaces encontrados: 0")
 link_count_label.pack(pady=5)
 
-# Filtro de resultados
-filter_frame = tk.Frame(root)
-filter_frame.pack(pady=10)
-
-filter_label = tk.Label(filter_frame, text="Filtrar resultados:")
-filter_label.pack(side="left", padx=5)
-
-filter_entry = tk.Entry(filter_frame, width=50)
-filter_entry.pack(side="left", padx=5)
-
-filter_button = tk.Button(filter_frame, text="Filtrar", command=filter_results)
-filter_button.pack(side="left", padx=5)
-
 # Crear un árbol para mostrar los resultados
-columns = ("URL", "Tipo", "Título", "Etiqueta H1", "Meta Descripción", "Código de Respuesta")
+columns = ("Respuesta", "URL", "Tipo", "Título", "Etiqueta H1", "Meta Descripción")
 result_tree = ttk.Treeview(root, columns=columns, show="headings", height=20)
 for col in columns:
     result_tree.heading(col, text=col)
 
-# Crear barras de desplazamiento vertical y horizontal
-vertical_scrollbar = tk.Scrollbar(root, orient="vertical", command=result_tree.yview)
-horizontal_scrollbar = tk.Scrollbar(root, orient="horizontal", command=result_tree.xview)
-
-result_tree.config(yscrollcommand=vertical_scrollbar.set, xscrollcommand=horizontal_scrollbar.set)
-
-# Empaquetar el Treeview con las barras de desplazamiento
 result_tree.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
-vertical_scrollbar.pack(side="right", fill="y")
-horizontal_scrollbar.pack(side="bottom", fill="x")
+
+# Agregar una barra de desplazamiento
+scrollbar = tk.Scrollbar(root, orient="vertical", command=result_tree.yview)
+result_tree.config(yscrollcommand=scrollbar.set)
+scrollbar.pack(side="right", fill="y")
 
 # Botón de exportar a Excel al final de la interfaz
 bottom_frame = tk.Frame(root)
