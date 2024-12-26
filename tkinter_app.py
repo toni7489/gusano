@@ -4,8 +4,9 @@ import requests
 from lxml import html
 from urllib.parse import urljoin
 import threading
+import pandas as pd
 
-# Funciones para obtener los enlaces, título, H1, meta descripción y código de estado
+# Funciones para obtener los enlaces, título, H1, meta descripción, código de estado y tipo
 def extract_info_from_url(url, callback):
     response = requests.get(url)
     tree = html.fromstring(response.content)
@@ -13,13 +14,31 @@ def extract_info_from_url(url, callback):
     html_links = tree.xpath('//a/@href')
     image_links = tree.xpath('//img/@src')
     css_links = tree.xpath('//link[@rel="stylesheet"]/@href')
+    js_links = tree.xpath('//script[@src]/@src')
 
-    all_links = html_links + image_links + css_links
+    all_links = html_links + image_links + css_links + js_links
     absolute_links = [urljoin(url, link) for link in all_links]
     unique_links = list(set(absolute_links))
 
     def is_valid_url(link):
         return link and link.startswith(('http', 'https', 'www'))
+
+    def get_file_type(page_url):
+        try:
+            response = requests.head(page_url, timeout=10)
+            content_type = response.headers.get('Content-Type', '')
+            
+            if 'html' in content_type:
+                return 'HTML'
+            elif 'image' in content_type:
+                return 'Imagen'
+            elif 'css' in content_type:
+                return 'CSS'
+            elif 'javascript' in content_type or 'js' in content_type:
+                return 'JavaScript'
+            return 'Desconocido'
+        except requests.RequestException:
+            return 'Error'
 
     def get_title(page_url):
         try:
@@ -28,7 +47,7 @@ def extract_info_from_url(url, callback):
                 page_tree = html.fromstring(response.content)
                 title = page_tree.xpath('//title/text()')
                 return title[0].strip() if title else 'Sin título'
-            return 'No es una página HTML'
+            return ''
         except requests.RequestException:
             return 'Error al obtener título'
 
@@ -39,7 +58,7 @@ def extract_info_from_url(url, callback):
                 page_tree = html.fromstring(response.content)
                 h1 = page_tree.xpath('//h1/text()')
                 return h1[0].strip() if h1 else 'Sin etiqueta H1'
-            return 'No es una página HTML'
+            return ''
         except requests.RequestException:
             return 'Error al obtener H1'
 
@@ -50,7 +69,7 @@ def extract_info_from_url(url, callback):
                 page_tree = html.fromstring(response.content)
                 meta_description = page_tree.xpath('//meta[@name="description"]/@content')
                 return meta_description[0].strip() if meta_description else 'Sin meta descripción'
-            return 'No es una página HTML'
+            return ''
         except requests.RequestException:
             return 'Error al obtener meta descripción'
 
@@ -61,7 +80,6 @@ def extract_info_from_url(url, callback):
         except requests.RequestException:
             return 'Error'
 
-    data = []
     for link in unique_links:
         if not is_valid_url(link):  # Saltar enlaces no válidos
             continue
@@ -69,13 +87,15 @@ def extract_info_from_url(url, callback):
         h1 = get_h1(link)
         meta_description = get_meta_description(link)
         status_code = get_status_code(link)
+        file_type = get_file_type(link)  # Obtener el tipo de archivo
 
         result = {
             'URL': link,
+            'Tipo': file_type,  # Ahora está primero
             'Título': title,
             'Etiqueta H1': h1,
             'Meta Descripción': meta_description,
-            'Código de Respuesta': status_code
+            'Código de Respuesta': status_code,
         }
         # Llamar al callback para insertar el resultado en el Treeview
         callback(result)
@@ -90,12 +110,13 @@ def analyze_url():
         return
 
     result_tree.delete(*result_tree.get_children())  # Limpiar resultados previos
+    collected_data.clear()  # Limpiar datos previos
     result_tree.insert("", "end", text="Iniciando análisis...")
 
     # Crear hilo para no bloquear la interfaz
     def run_analysis():
         try:
-            results = extract_info_from_url(url, update_treeview)
+            extract_info_from_url(url, update_treeview)
             status_label.config(text=f"Análisis completado.")
         except Exception as e:
             messagebox.showerror("Error", f"Hubo un problema al procesar la URL: {e}")
@@ -109,20 +130,74 @@ def update_treeview(result):
         return
 
     # Inserta el resultado en el Treeview de manera progresiva
-    result_tree.insert("", "end", values=(result['URL'], result['Título'], result['Etiqueta H1'], result['Meta Descripción'], result['Código de Respuesta']))
-    
-    # Actualiza el contador de enlaces
+    item_id = result_tree.insert("", "end", values=(result['URL'], result['Tipo'], result['Título'], result['Etiqueta H1'], result['Meta Descripción'], result['Código de Respuesta']))
+
+    # Alternar colores de fondo de las filas (filas de gris claro y gris oscuro alternadas)
+    row_index = len(result_tree.get_children()) - 1  # Índice de la fila
+
+    if row_index % 2 == 0:  # Filas pares color gris oscuro
+        result_tree.item(item_id, tags=("dark_gray_row",))
+    else:  # Filas impares color gris claro
+        result_tree.item(item_id, tags=("light_gray_row",))
+
+    # Actualizar el contador de enlaces
+    collected_data.append(result)
     link_count_label.config(text=f"Enlaces encontrados: {len(result_tree.get_children())}")
+
+# Función para filtrar los resultados
+def filter_results():
+    filter_text = filter_entry.get().lower()
+    
+    # Eliminar los resultados actuales
+    result_tree.delete(*result_tree.get_children())
+
+    # Insertar los resultados que coincidan con el filtro
+    for data in collected_data:
+        # Buscar en todas las columnas
+        if any(filter_text in str(data[col]).lower() for col in data):
+            result_tree.insert("", "end", values=(data['URL'], data['Tipo'], data['Título'], data['Etiqueta H1'], data['Meta Descripción'], data['Código de Respuesta']))
+
+# Función para exportar resultados a Excel
+def export_to_excel():
+    if not collected_data:
+        messagebox.showerror("Error", "No hay datos para exportar.")
+        return
+    
+    file_path = filedialog.asksaveasfilename(
+        defaultextension=".xlsx",
+        filetypes=[("Archivos de Excel", "*.xlsx")],
+        title="Guardar como"
+    )
+    if not file_path:
+        return  # El usuario canceló el guardado
+    
+    df = pd.DataFrame(collected_data)
+    try:
+        df.to_excel(file_path, index=False)
+        messagebox.showinfo("Éxito", "Resultados exportados a Excel correctamente.")
+    except Exception as e:
+        messagebox.showerror("Error", f"No se pudo exportar a Excel: {e}")
+
+# Variables globales
+collected_data = []
 
 # Crear la interfaz gráfica
 root = tk.Tk()
 root.title("Analizador de Enlaces SEO")
 
-# Configuración de la ventana
-root.geometry("800x600")  # Tamaño inicial
-root.resizable(True, True)  # Permitir el cambio de tamaño
+# Configuración de la ventana para adaptarse al tamaño de la pantalla
+screen_width = root.winfo_screenwidth()
+screen_height = root.winfo_screenheight()
 
-# Crear un Frame para alinear la URL Label y el Entry en la misma línea
+# Configurar tamaño inicial (80% de la pantalla) y centrar
+window_width = int(screen_width * 0.8)
+window_height = int(screen_height * 0.8)
+x_position = (screen_width - window_width) // 2
+y_position = (screen_height - window_height) // 2
+root.geometry(f"{window_width}x{window_height}+{x_position}+{y_position}")
+root.resizable(True, True)
+
+# Crear un Frame para la URL
 frame = tk.Frame(root)
 frame.pack(pady=10)
 
@@ -132,8 +207,8 @@ url_label.pack(side="left", padx=5)
 url_entry = tk.Entry(frame, width=50)
 url_entry.pack(side="left", padx=5)
 
-analyze_button = tk.Button(root, text="Iniciar Análisis", command=analyze_url)
-analyze_button.pack(pady=10)
+analyze_button = tk.Button(frame, text="Iniciar Análisis", command=analyze_url)
+analyze_button.pack(side="left", padx=5)
 
 status_label = tk.Label(root, text="Esperando para iniciar el análisis...")
 status_label.pack(pady=5)
@@ -141,18 +216,42 @@ status_label.pack(pady=5)
 link_count_label = tk.Label(root, text="Enlaces encontrados: 0")
 link_count_label.pack(pady=5)
 
+# Filtro de resultados
+filter_frame = tk.Frame(root)
+filter_frame.pack(pady=10)
+
+filter_label = tk.Label(filter_frame, text="Filtrar resultados:")
+filter_label.pack(side="left", padx=5)
+
+filter_entry = tk.Entry(filter_frame, width=50)
+filter_entry.pack(side="left", padx=5)
+
+filter_button = tk.Button(filter_frame, text="Filtrar", command=filter_results)
+filter_button.pack(side="left", padx=5)
+
 # Crear un árbol para mostrar los resultados
-columns = ("URL", "Título", "Etiqueta H1", "Meta Descripción", "Código de Respuesta")
+columns = ("URL", "Tipo", "Título", "Etiqueta H1", "Meta Descripción", "Código de Respuesta")
 result_tree = ttk.Treeview(root, columns=columns, show="headings", height=20)
 for col in columns:
     result_tree.heading(col, text=col)
 
-result_tree.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
+# Crear barras de desplazamiento vertical y horizontal
+vertical_scrollbar = tk.Scrollbar(root, orient="vertical", command=result_tree.yview)
+horizontal_scrollbar = tk.Scrollbar(root, orient="horizontal", command=result_tree.xview)
 
-# Agregar una barra de desplazamiento para el árbol de resultados
-scrollbar = tk.Scrollbar(root, orient="vertical", command=result_tree.yview)
-result_tree.config(yscrollcommand=scrollbar.set)
-scrollbar.pack(side="right", fill="y")
+result_tree.config(yscrollcommand=vertical_scrollbar.set, xscrollcommand=horizontal_scrollbar.set)
+
+# Empaquetar el Treeview con las barras de desplazamiento
+result_tree.pack(expand=True, fill=tk.BOTH, padx=10, pady=10)
+vertical_scrollbar.pack(side="right", fill="y")
+horizontal_scrollbar.pack(side="bottom", fill="x")
+
+# Botón de exportar a Excel al final de la interfaz
+bottom_frame = tk.Frame(root)
+bottom_frame.pack(side="bottom", fill="x", pady=10)
+
+export_button = tk.Button(bottom_frame, text="Exportar a Excel", command=export_to_excel)
+export_button.pack(side="left", padx=10)
 
 # Ejecutar la aplicación
 root.mainloop()
