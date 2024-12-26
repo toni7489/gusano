@@ -6,9 +6,10 @@ from urllib.parse import urljoin
 import threading
 import pandas as pd
 import mimetypes
+import webbrowser
 
 # Funciones para obtener los enlaces, título, H1, meta descripción, código de estado y tipo
-def extract_info_from_url(url, callback, processed_urls):
+def extract_info_from_url(url, callback, processed_urls, depth=1):
     response = requests.get(url)
     tree = html.fromstring(response.content)
 
@@ -25,7 +26,6 @@ def extract_info_from_url(url, callback, processed_urls):
         return link and link.startswith(('http', 'https', 'www'))
 
     def get_file_type(page_url):
-        # Intentar identificar el tipo de archivo usando la extensión del archivo en la URL
         file_type, _ = mimetypes.guess_type(page_url)
         if file_type:
             if 'image' in file_type:
@@ -36,7 +36,6 @@ def extract_info_from_url(url, callback, processed_urls):
                 return 'CSS'
             elif 'javascript' in file_type or 'js' in file_type:
                 return 'JavaScript'
-        # Si no se puede determinar a partir de la extensión, hacer una verificación con HEAD
         try:
             response = requests.head(page_url, timeout=10)
             content_type = response.headers.get('Content-Type', '')
@@ -92,36 +91,36 @@ def extract_info_from_url(url, callback, processed_urls):
         except requests.RequestException:
             return 'Error al obtener meta descripción'
 
-    # Recorrer los enlaces únicos obtenidos de la página
     for link in unique_links:
-        if not is_valid_url(link):  # Saltar enlaces no válidos
+        if not is_valid_url(link):
             continue
-        if link in processed_urls:  # Verificar si la URL ya fue procesada
+        if link in processed_urls:
             continue
 
-        # Marcar la URL como procesada
         processed_urls.add(link)
 
-        # Obtener información del enlace
-        status_code = get_status_code(link)  # Capturar el código de respuesta
+        status_code = get_status_code(link)
         title = get_title(link)
         h1 = get_h1(link)
         meta_description = get_meta_description(link)
         file_type = get_file_type(link)
 
         result = {
-            'Código de Respuesta': status_code,  # Ahora está primero
+            'Código de Respuesta': status_code,
             'URL': link,
-            'Tipo': file_type,  # Ahora está segundo
+            'Tipo': file_type,
             'Título': title,
             'Etiqueta H1': h1,
             'Meta Descripción': meta_description,
+            'Profundidad': depth
         }
 
-        # Llamar al callback para insertar el resultado en el Treeview
         callback(result)
 
-    callback("FIN")  # Indicador de fin de proceso
+        if depth < 3:  # Limitar la profundidad a 3, ajusta según sea necesario
+            extract_info_from_url(link, callback, processed_urls, depth + 1)
+
+    callback("FIN")
 
 # Función para actualizar la interfaz mientras se obtiene la información
 def analyze_url():
@@ -130,15 +129,14 @@ def analyze_url():
         messagebox.showerror("Error", "Debes ingresar una URL.")
         return
 
-    result_tree.delete(*result_tree.get_children())  # Limpiar resultados previos
-    collected_data.clear()  # Limpiar datos previos
-    processed_urls.clear()  # Limpiar URLs procesadas previamente
+    result_tree.delete(*result_tree.get_children())
+    collected_data.clear()
+    processed_urls.clear()
     result_tree.insert("", "end", text="Iniciando análisis...")
 
-    # Crear hilo para no bloquear la interfaz
     def run_analysis():
         try:
-            processed_urls.add(url)  # Agregar la URL inicial como procesada
+            processed_urls.add(url)
             extract_info_from_url(url, update_treeview, processed_urls)
             status_label.config(text=f"Análisis completado.")
         except Exception as e:
@@ -152,18 +150,14 @@ def update_treeview(result):
     if result == "FIN":
         return
 
-    # Inserta el resultado en el Treeview de manera progresiva
-    item_id = result_tree.insert("", "end", values=(result['Código de Respuesta'], result['URL'], result['Tipo'], result['Título'], result['Etiqueta H1'], result['Meta Descripción']))
+    item_id = result_tree.insert("", "end", values=(result['Código de Respuesta'], result['URL'], result['Tipo'], result['Título'], result['Etiqueta H1'], result['Meta Descripción'], result['Profundidad']))
 
-    # Alternar colores de fondo de las filas (filas de gris claro y gris oscuro alternadas)
-    row_index = len(result_tree.get_children()) - 1  # Índice de la fila
-
-    if row_index % 2 == 0:  # Filas pares color gris oscuro
+    row_index = len(result_tree.get_children()) - 1
+    if row_index % 2 == 0:
         result_tree.item(item_id, tags=("dark_gray_row",))
-    else:  # Filas impares color gris claro
+    else:
         result_tree.item(item_id, tags=("light_gray_row",))
 
-    # Actualizar el contador de enlaces
     collected_data.append(result)
     link_count_label.config(text=f"Enlaces encontrados: {len(result_tree.get_children())}")
 
@@ -179,7 +173,7 @@ def export_to_excel():
         title="Guardar como"
     )
     if not file_path:
-        return  # El usuario canceló el guardado
+        return
     
     df = pd.DataFrame(collected_data)
     try:
@@ -188,19 +182,25 @@ def export_to_excel():
     except Exception as e:
         messagebox.showerror("Error", f"No se pudo exportar a Excel: {e}")
 
+# Función para abrir URL al hacer doble clic en el Treeview
+def open_url(event):
+    selected_item = result_tree.selection()
+    if selected_item:
+        url = result_tree.item(selected_item[0])['values'][1]
+        webbrowser.open(url)
+
 # Variables globales
 collected_data = []
-processed_urls = set()  # Conjunto para almacenar las URLs procesadas
+processed_urls = set()
 
 # Crear la interfaz gráfica
 root = tk.Tk()
 root.title("Analizador de Enlaces SEO")
 
-# Configuración de la ventana para adaptarse al tamaño de la pantalla
+# Configuración de la ventana
 screen_width = root.winfo_screenwidth()
 screen_height = root.winfo_screenheight()
 
-# Configurar tamaño inicial (80% de la pantalla) y centrar
 window_width = int(screen_width * 0.8)
 window_height = int(screen_height * 0.8)
 x_position = (screen_width - window_width) // 2
@@ -228,7 +228,7 @@ link_count_label = tk.Label(root, text="Enlaces encontrados: 0")
 link_count_label.pack(pady=5)
 
 # Crear un árbol para mostrar los resultados
-columns = ("Respuesta", "URL", "Tipo", "Título", "Etiqueta H1", "Meta Descripción")
+columns = ("Respuesta", "URL", "Tipo", "Título", "Etiqueta H1", "Meta Descripción", "Profundidad")
 result_tree = ttk.Treeview(root, columns=columns, show="headings", height=20)
 for col in columns:
     result_tree.heading(col, text=col)
@@ -240,7 +240,10 @@ scrollbar = tk.Scrollbar(root, orient="vertical", command=result_tree.yview)
 result_tree.config(yscrollcommand=scrollbar.set)
 scrollbar.pack(side="right", fill="y")
 
-# Botón de exportar a Excel al final de la interfaz
+# Agregar evento para abrir la URL al hacer doble clic
+result_tree.bind("<Double-1>", open_url)
+
+# Botón de exportar a Excel
 bottom_frame = tk.Frame(root)
 bottom_frame.pack(side="bottom", fill="x", pady=10)
 
