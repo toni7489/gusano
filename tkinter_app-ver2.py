@@ -150,13 +150,7 @@ def update_treeview(result):
     if result == "FIN":
         return
 
-    item_id = result_tree.insert("", "end", values=(result['Código de Respuesta'], result['URL'], result['Tipo'], result['Título'], result['Etiqueta H1'], result['Meta Descripción'], result['Profundidad']))
-
-    row_index = len(result_tree.get_children()) - 1
-    if row_index % 2 == 0:
-        result_tree.item(item_id, tags=("dark_gray_row",))
-    else:
-        result_tree.item(item_id, tags=("light_gray_row",))
+    result_tree.insert("", "end", values=(result['Código de Respuesta'], result['URL'], result['Tipo'], result['Título'], result['Etiqueta H1'], result['Meta Descripción'], result['Profundidad']))
 
     collected_data.append(result)
     link_count_label.config(text=f"Enlaces encontrados: {len(result_tree.get_children())}")
@@ -196,6 +190,7 @@ processed_urls = set()
 # Crear la interfaz gráfica
 root = tk.Tk()
 root.title("Analizador de Enlaces SEO")
+root.configure(bg="#333333")  # Fondo gris oscuro
 
 # Configuración de la ventana
 screen_width = root.winfo_screenwidth()
@@ -208,11 +203,25 @@ y_position = (screen_height - window_height) // 2
 root.geometry(f"{window_width}x{window_height}+{x_position}+{y_position}")
 root.resizable(True, True)
 
+# Crear estilo personalizado
+style = ttk.Style()
+style.theme_use("clam")
+style.configure(
+    "Treeview",
+    font=("Arial", 10),
+    rowheight=25,
+    background="#D3D3D3",  # Fondo gris claro
+    fieldbackground="#D3D3D3",  # Fondo gris claro para las celdas
+    foreground="black",
+)
+style.configure("Treeview.Heading", font=("Arial", 12, "bold"), background="#444444", foreground="white")
+style.map("Treeview", background=[("selected", "#666666")], foreground=[("selected", "white")])
+
 # Crear un Frame para la URL
-frame = tk.Frame(root)
+frame = tk.Frame(root, bg="#333333")
 frame.pack(pady=10)
 
-url_label = tk.Label(frame, text="Ingresa la URL:")
+url_label = tk.Label(frame, text="Ingresa la URL:", bg="#333333", fg="white")
 url_label.pack(side="left", padx=5)
 
 url_entry = tk.Entry(frame, width=50)
@@ -221,10 +230,10 @@ url_entry.pack(side="left", padx=5)
 analyze_button = tk.Button(frame, text="Iniciar Análisis", command=analyze_url)
 analyze_button.pack(side="left", padx=5)
 
-status_label = tk.Label(root, text="Esperando para iniciar el análisis...")
+status_label = tk.Label(root, text="Esperando para iniciar el análisis...", bg="#333333", fg="white")
 status_label.pack(pady=5)
 
-link_count_label = tk.Label(root, text="Enlaces encontrados: 0")
+link_count_label = tk.Label(root, text="Enlaces encontrados: 0", bg="#333333", fg="white")
 link_count_label.pack(pady=5)
 
 # Crear un árbol para mostrar los resultados
@@ -244,7 +253,7 @@ scrollbar.pack(side="right", fill="y")
 result_tree.bind("<Double-1>", open_url)
 
 # Botón de exportar a Excel
-bottom_frame = tk.Frame(root)
+bottom_frame = tk.Frame(root, bg="#333333")
 bottom_frame.pack(side="bottom", fill="x", pady=10)
 
 export_button = tk.Button(bottom_frame, text="Exportar a Excel", command=export_to_excel)
@@ -252,3 +261,4 @@ export_button.pack(side="left", padx=10)
 
 # Ejecutar la aplicación
 root.mainloop()
+
