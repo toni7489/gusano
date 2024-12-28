@@ -97,12 +97,12 @@ def extract_info_from_url(url, callback, processed_urls, depth=1):
     try:
         response = requests.get(url, timeout=request_timeout)
         tree = html.fromstring(response.content)
-        
+
         html_links = tree.xpath('//a/@href')
         image_links = tree.xpath('//img/@src')
         css_links = tree.xpath('//link[@rel="stylesheet"]/@href')
         js_links = tree.xpath('//script[@src]/@src')
-        
+
         all_links = html_links + image_links + css_links + js_links
         absolute_links = [urljoin(url, link) for link in all_links]
         
@@ -115,7 +115,7 @@ def extract_info_from_url(url, callback, processed_urls, depth=1):
                 continue
             
             processed_urls.add(link)
-            
+
             status_code = get_status_code(link)
             title = get_title(link)
             h1 = get_h1(link)
@@ -131,14 +131,14 @@ def extract_info_from_url(url, callback, processed_urls, depth=1):
                 'Meta Descripción': meta_description,
                 'Profundidad': depth
             }
-            
+
             callback(result)
 
             extract_info_from_url(link, callback, processed_urls, depth + 1)
-    
+
     except requests.RequestException:
         pass
-    
+
     callback("FIN")
 
 def analyze_url():
@@ -221,7 +221,7 @@ def open_results():
     )
     
     if not file_path:
-        return
+       return
     
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
@@ -254,40 +254,39 @@ def open_results():
         messagebox.showerror("Error", f"No se pudo cargar el análisis: {e}")
 
 def save_results():
-    if not collected_data:
-       messagebox.showerror("Error", "No hay datos para guardar.")
+   if not collected_data: 
+       messagebox.showerror("Error", "No hay datos para guardar.") 
        return
-    
-    file_path = filedialog.asksaveasfilename(
+   
+   file_path=filedialog.asksaveasfilename(
        defaultextension=".json",
        filetypes=[("Archivos JSON", "*.json")],
        title="Guardar análisis"
-    )   
+   )
    
-    if not file_path:
-        return
+   if not file_path: 
+       return
    
-    try:
-       with open(file_path, 'w', encoding='utf-8') as file:
-           json.dump(collected_data, file, ensure_ascii=False, indent=4)
-
-       messagebox.showinfo("Éxito", "Análisis guardado correctamente.")
+   try: 
+       with open(file_path,'w',encoding='utf-8') as file: 
+           json.dump(collected_data,file,ensure_ascii=False,indent=4) 
+           messagebox.showinfo("Éxito","Análisis guardado correctamente.")
    
-    except Exception as e:
-       messagebox.showerror("Error", f"No se pudo guardar el análisis: {e}")
+   except Exception as e: 
+       messagebox.showerror("Error",f"No se pudo guardar el análisis: {e}")
 
 def show_config():
-   config_window = tk.Toplevel(root)
-   config_window.title("Configuración")
-   config_window.geometry("500x250")
+   config_window=tk.Toplevel(root) 
+   config_window.title("Configuración") 
+   config_window.geometry("500x250") 
    config_window.resizable(True, True)
 
-   frame = tk.Frame(config_window, padx=20, pady=20)
-   frame.pack(fill=tk.BOTH, expand=True)
+   frame=tk.Frame(config_window,padx=20,pady=20) 
+   frame.pack(fill=tk.BOTH,expand=True)
 
-   tk.Label(frame, text="Profundidad máxima de escaneo:").grid(row=0, column=0, padx=10, pady=5, sticky="e")
-   depth_entry = tk.Entry(frame)
-   depth_entry.insert(0, str(max_depth))
+   tk.Label(frame,text="Profundidad máxima de escaneo:").grid(row=0,column=0,padx=10,pady=5,sticky="e")
+   depth_entry=tk.Entry(frame) 
+   depth_entry.insert(0,str(max_depth)) 
    depth_entry.grid(row=0,column=1,padx=10,pady=5)
 
    tk.Label(frame,text="Tiempo de espera (segundos):").grid(row=1,column=0,padx=10,pady=5,sticky="e")
@@ -322,8 +321,8 @@ def show_manual():
 def show_about():
    messagebox.showinfo("Acerca de", "Analizador de Enlaces SEO\nVersión 1.0\n© 2024 Tu Nombre")
 
-root=tk.Tk()
-root.title("Analizador de Enlaces SEO")
+root=tk.Tk() 
+root.title("Analizador de Enlaces SEO") 
 root.configure(bg="#333333")
 
 # Crear la barra de menú
@@ -350,6 +349,7 @@ help_menu.add_command(label="Acerca de",command=show_about)
 
 screen_width=root.winfo_screenwidth() 
 screen_height=root.winfo_screenheight() 
+
 window_width=int(screen_width*0.8) 
 window_height=int(screen_height*0.8)
 
@@ -357,10 +357,12 @@ x_position=(screen_width-window_width)//2
 y_position=(screen_height-window_height)//2 
 
 root.geometry(f"{window_width}x{window_height}+{x_position}+{y_position}") 
+
 root.resizable(True ,True)
 
 style=tk.ttk.Style() 
 style.theme_use("clam") 
+
 style.configure(
 "Treeview",
 font=("Arial" ,10),
@@ -371,10 +373,11 @@ foreground="black",
 )
 
 style.configure("Treeview.Heading" ,font=("Arial" ,12 ,"bold"),background="#444444" ,foreground="white") 
+
 style.map("Treeview" ,background=[("selected","#666666")],foreground=[("selected","white")])
 
 frame=tk.Frame(root,bg="#333333") 
-frame.pack(pady=10)
+frame.pack(pady=(10))
 
 url_label=tk.Label(frame,text="Ingresa la URL:",bg="#333333" ,fg="white") 
 url_label.pack(side="left" ,padx=(5))
@@ -383,12 +386,15 @@ url_entry=tk.Entry(frame,width=50)
 url_entry.pack(side="left" ,padx=(5))
 
 analyze_button=tk.Button(frame,text="Iniciar Análisis" ,command=analyze_url) 
+
 analyze_button.pack(side="left" ,padx=(5))
 
 status_label=tk.Label(root,text="Esperando para iniciar el análisis...",bg="#333333" ,fg="white") 
+
 status_label.pack(pady=(5))
 
 link_count_label=tk.Label(root,text="Enlaces encontrados: 0",bg="#333333" ,fg="white") 
+
 link_count_label.pack(pady=(5))
 
 columns=("Respuesta","URL","Tipo","Título","Etiqueta H1","Meta Descripción","Profundidad") 
